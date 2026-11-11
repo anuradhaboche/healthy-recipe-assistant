@@ -20,7 +20,8 @@ python -m fridge_agent photos/fridge.jpg --json   # raw structured output
 python -m fridge_agent photos/fridge.jpg --save-inventory inventory.json
 python -m fridge_agent --inventory inventory.json --nutrition -v
 
-# No photo handy? Try the sample list
+# No photo handy? Try the sample fridge image or the sample list
+python -m fridge_agent examples/sample_fridge.jpg
 python -m fridge_agent --inventory examples/sample_inventory.json --nutrition -v
 ```
 
