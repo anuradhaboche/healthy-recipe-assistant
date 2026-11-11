@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+# Let tests import fridge_agent when run as plain `pytest` from the repo root.
+pythonpath = ["."]
+testpaths = ["tests"]
