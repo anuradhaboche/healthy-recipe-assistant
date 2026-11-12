@@ -10,6 +10,7 @@ import json
 import sys
 from pathlib import Path
 
+import anthropic
 from dotenv import load_dotenv
 
 from .models import FridgeInventory
@@ -98,5 +99,29 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def run(argv: list[str] | None = None) -> int:
+    """main() with friendly messages for the common API failures."""
+    try:
+        return main(argv)
+    except anthropic.AuthenticationError:
+        print("Error: API key rejected. Check ANTHROPIC_API_KEY in your .env file.", file=sys.stderr)
+    except anthropic.APITimeoutError:
+        print("Error: no answer from the Anthropic API within 2 minutes. Check your internet, VPN or proxy.",
+              file=sys.stderr)
+    except anthropic.APIConnectionError as e:
+        print(f"Error: could not connect to the Anthropic API ({e.__cause__ or e}). Check your internet, VPN or proxy.",
+              file=sys.stderr)
+    except anthropic.BadRequestError as e:
+        msg = str(e)
+        if "credit balance" in msg.lower():
+            print("Error: your Anthropic account has no credits. Add some at console.anthropic.com > Billing.",
+                  file=sys.stderr)
+        else:
+            print(f"Error from the Anthropic API: {msg}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("\nStopped.", file=sys.stderr)
+    return 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run())

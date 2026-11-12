@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from . import usda
 from .models import FridgeInventory
-from .vision import MODEL, RefusalError
+from .vision import MODEL, RefusalError, make_client
 
 MAX_TURNS = 25
 
@@ -100,7 +100,7 @@ def match_ingredients(
     trace: Callable[[str], None] = lambda _: None,
 ) -> MatchResult:
     """The agent loop: let Claude search USDA until every ingredient is matched."""
-    client = client or anthropic.Anthropic()
+    client = client or make_client()
     lines = [f"- {i.name}: {i.quantity}" for i in inventory.ingredients]
     messages: list = [{"role": "user", "content": "Ingredients:\n" + "\n".join(lines)}]
 
