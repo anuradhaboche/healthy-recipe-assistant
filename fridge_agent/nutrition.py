@@ -101,7 +101,9 @@ def match_ingredients(
 ) -> MatchResult:
     """The agent loop: let Claude search USDA until every ingredient is matched."""
     client = client or make_client()
-    lines = [f"- {i.name}: {i.quantity}" for i in inventory.ingredients]
+    # Pass the photo notes along too ("2% reduced fat", "plain 0%"): they decide
+    # which USDA entry is right, and dropping them loses what step 1 read off the label.
+    lines = [f"- {i.name}: {i.quantity}" + (f" ({i.note})" if i.note else "") for i in inventory.ingredients]
     messages: list = [{"role": "user", "content": "Ingredients:\n" + "\n".join(lines)}]
 
     for turn in range(1, MAX_TURNS + 1):
