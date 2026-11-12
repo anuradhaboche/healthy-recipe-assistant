@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from . import usda
 from .models import FridgeInventory
-from .vision import MODEL, RefusalError, make_client
+from .vision import MODEL, RefusalError, ask_claude, make_client
 
 MAX_TURNS = 25
 
@@ -105,7 +105,8 @@ def match_ingredients(
     messages: list = [{"role": "user", "content": "Ingredients:\n" + "\n".join(lines)}]
 
     for turn in range(1, MAX_TURNS + 1):
-        response = client.messages.parse(
+        response = ask_claude(
+            client,
             model=MODEL,
             max_tokens=16000,
             system=SYSTEM_PROMPT,

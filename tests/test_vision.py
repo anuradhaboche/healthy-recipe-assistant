@@ -19,14 +19,30 @@ SAMPLE = FridgeInventory.model_validate(
 )
 
 
+class FakeStream:
+    """Stands in for client.messages.stream(...) as a context manager."""
+
+    def __init__(self, message):
+        self.message = message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_final_message(self):
+        return self.message
+
+
 class FakeMessages:
     def __init__(self, response):
         self.response = response
         self.calls = []
 
-    def parse(self, **kwargs):
+    def stream(self, **kwargs):
         self.calls.append(kwargs)
-        return self.response
+        return FakeStream(self.response)
 
 
 def fake_client(stop_reason="end_turn", parsed=SAMPLE):

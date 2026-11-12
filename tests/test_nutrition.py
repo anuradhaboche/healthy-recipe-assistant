@@ -25,6 +25,22 @@ def text(t):
     return SimpleNamespace(type="text", text=t)
 
 
+class FakeStream:
+    """Stands in for client.messages.stream(...) as a context manager."""
+
+    def __init__(self, message):
+        self.message = message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_final_message(self):
+        return self.message
+
+
 class ScriptedMessages:
     """Plays back a fixed sequence of responses, recording each request."""
 
@@ -32,10 +48,10 @@ class ScriptedMessages:
         self.responses = list(responses)
         self.calls = []
 
-    def parse(self, **kwargs):
+    def stream(self, **kwargs):
         # Snapshot messages: the loop keeps appending to the same list.
         self.calls.append({**kwargs, "messages": list(kwargs["messages"])})
-        return self.responses.pop(0)
+        return FakeStream(self.responses.pop(0))
 
 
 def test_agent_loop_runs_tools_and_returns_result(monkeypatch):

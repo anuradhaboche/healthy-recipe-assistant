@@ -34,6 +34,18 @@ def make_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(timeout=TIMEOUT_SECONDS, max_retries=1)
 
 
+def ask_claude(client: anthropic.Anthropic, **params):
+    """Send a request as a stream and return the finished (parsed) message.
+
+    Streaming keeps data flowing while Claude works. A plain request sends
+    nothing back until the whole answer is ready, and some home routers, VPNs
+    and proxies silently drop connections that look idle, which shows up as a
+    hang. The result is the same object a non-streaming call would return.
+    """
+    with client.messages.stream(**params) as stream:
+        return stream.get_final_message()
+
+
 SUPPORTED_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 
@@ -61,7 +73,8 @@ def detect_ingredients(
     content = [_image_block(Path(p)) for p in image_paths]
     content.append({"type": "text", "text": "List the ingredients in these photos."})
 
-    response = client.messages.parse(
+    response = ask_claude(
+        client,
         model=MODEL,
         max_tokens=16000,
         system=SYSTEM_PROMPT,
