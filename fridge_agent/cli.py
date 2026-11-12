@@ -75,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         if missing:
             print(f"Not found: {', '.join(map(str, missing))}", file=sys.stderr)
             return 1
+        print(f"Looking at {len(args.photos)} photo(s)... (usually 15-40 seconds)", file=sys.stderr)
         inventory = detect_ingredients(args.photos)
 
     if args.save_inventory:
@@ -88,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     trace = (lambda msg: print(f"[agent] {msg}", file=sys.stderr)) if args.verbose else (lambda _: None)
+    print("Looking up nutrition in the USDA database...", file=sys.stderr)
     lines = compute_nutrition(match_ingredients(inventory, trace=trace))
     if args.json:
         print(json.dumps([n.model_dump() for n in lines], indent=2))
