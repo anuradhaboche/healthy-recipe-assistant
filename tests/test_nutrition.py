@@ -139,3 +139,12 @@ def test_get_food_reuses_search_results_without_api_call(monkeypatch, tmp_path):
 
     monkeypatch.setattr(usda, "_cached_get", no_network)
     assert usda.get_food(171287)["per_100g"]["protein_g"] == 12.6
+
+
+def test_label_notes_reach_the_agent(monkeypatch):
+    inv = FridgeInventory.model_validate({"ingredients": [
+        {"name": "milk", "quantity": "1 carton", "category": "dairy", "confidence": 0.9, "note": "2% reduced fat"}]})
+    final = MatchResult(items=[MatchedIngredient(ingredient="milk", fdc_id=None, grams=1030)])
+    msgs = ScriptedMessages([SimpleNamespace(stop_reason="end_turn", parsed_output=final, content=[text("{}")])])
+    match_ingredients(inv, client=SimpleNamespace(messages=msgs))
+    assert "2% reduced fat" in msgs.calls[0]["messages"][0]["content"]
