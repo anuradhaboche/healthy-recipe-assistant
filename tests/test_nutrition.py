@@ -125,3 +125,17 @@ def test_macros_per_100g_handles_both_response_shapes():
     assert usda.macros_per_100g(search_shape)["protein_g"] == 10.0
     assert usda.macros_per_100g(search_shape)["calories_kcal"] == 200
     assert usda.macros_per_100g(detail_shape)["calories_kcal"] == 199  # Atwater fallback
+
+
+def test_get_food_reuses_search_results_without_api_call(monkeypatch, tmp_path):
+    monkeypatch.setattr(usda, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(usda, "_cached_get", lambda path, params: {"foods": [
+        {"fdcId": 171287, "description": "Egg, whole, raw, fresh",
+         "foodNutrients": [{"nutrientId": 1003, "value": 12.6}]}]})
+    usda.search_foods("egg")
+
+    def no_network(*a, **k):
+        raise AssertionError("get_food should not call the API for a food it has already seen")
+
+    monkeypatch.setattr(usda, "_cached_get", no_network)
+    assert usda.get_food(171287)["per_100g"]["protein_g"] == 12.6

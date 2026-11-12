@@ -14,6 +14,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from .models import FridgeInventory
+from .usda import USDAError
 from .nutrition import NutritionLine, compute_nutrition, match_ingredients
 from .vision import detect_ingredients
 
@@ -118,6 +119,8 @@ def run(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(f"Error from the Anthropic API: {msg}", file=sys.stderr)
+    except USDAError as e:
+        print(f"Error: {e}", file=sys.stderr)
     except KeyboardInterrupt:
         print("\nStopped.", file=sys.stderr)
     return 1

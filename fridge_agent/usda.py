@@ -75,18 +75,30 @@ def macros_per_100g(food: dict) -> dict:
     }
 
 
+def _food_cache(fdc_id: int) -> Path:
+    return CACHE_DIR / "foods" / f"{fdc_id}.json"
+
+
 def search_foods(query: str, limit: int = 5) -> list[dict]:
     """Search generic foods (Foundation + SR Legacy, which report per 100 g)."""
     data = _cached_get(
         "/foods/search",
         {"query": query, "dataType": "Foundation,SR Legacy", "pageSize": limit},
     )
-    return [
+    results = [
         {"fdc_id": f["fdcId"], "description": f["description"], "per_100g": macros_per_100g(f)}
         for f in data.get("foods", [])
     ]
+    # Remember each food we've seen, so get_food() doesn't need another API call.
+    (CACHE_DIR / "foods").mkdir(parents=True, exist_ok=True)
+    for r in results:
+        _food_cache(r["fdc_id"]).write_text(json.dumps(r))
+    return results
 
 
 def get_food(fdc_id: int) -> dict:
+    cached = _food_cache(fdc_id)
+    if cached.exists():
+        return json.loads(cached.read_text())
     data = _cached_get(f"/food/{fdc_id}", {})
     return {"fdc_id": fdc_id, "description": data.get("description", ""), "per_100g": macros_per_100g(data)}
