@@ -1,0 +1,12 @@
+{
+  "ingredients": [
+    {"name": "egg", "quantity": "6", "category": "protein", "confidence": 0.95},
+    {"name": "chicken breast", "quantity": "2", "category": "protein", "confidence": 0.9},
+    {"name": "greek yogurt", "quantity": "500 g tub, half full", "category": "dairy", "confidence": 0.85},
+    {"name": "spinach", "quantity": "half a bag", "category": "vegetable", "confidence": 0.8},
+    {"name": "broccoli", "quantity": "1 head", "category": "vegetable", "confidence": 0.9},
+    {"name": "cooked rice", "quantity": "1 container", "category": "grain", "confidence": 0.6},
+    {"name": "ketchup", "quantity": "1 bottle", "category": "condiment", "confidence": 0.95}
+  ],
+  "unclear_items": []
+}

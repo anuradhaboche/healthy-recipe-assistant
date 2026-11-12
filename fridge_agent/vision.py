@@ -25,6 +25,27 @@ The list feeds a recipe planner for someone strength training, so protein source
 - Estimate quantities roughly; say 'unknown' rather than inventing a number.
 - Put anything you can see but cannot identify in unclear_items instead of guessing."""
 
+# Give up after 2 minutes instead of the SDK default of 10, so a network
+# problem shows up as an error rather than a silent hang.
+TIMEOUT_SECONDS = 120
+
+
+def make_client() -> anthropic.Anthropic:
+    return anthropic.Anthropic(timeout=TIMEOUT_SECONDS, max_retries=1)
+
+
+def ask_claude(client: anthropic.Anthropic, **params):
+    """Send a request as a stream and return the finished (parsed) message.
+
+    Streaming keeps data flowing while Claude works. A plain request sends
+    nothing back until the whole answer is ready, and some home routers, VPNs
+    and proxies silently drop connections that look idle, which shows up as a
+    hang. The result is the same object a non-streaming call would return.
+    """
+    with client.messages.stream(**params) as stream:
+        return stream.get_final_message()
+
+
 SUPPORTED_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 
@@ -47,12 +68,13 @@ def detect_ingredients(
     """Send one or more photos to Claude and get back a validated FridgeInventory."""
     if not image_paths:
         raise ValueError("Need at least one photo")
-    client = client or anthropic.Anthropic()
+    client = client or make_client()
 
     content = [_image_block(Path(p)) for p in image_paths]
     content.append({"type": "text", "text": "List the ingredients in these photos."})
 
-    response = client.messages.parse(
+    response = ask_claude(
+        client,
         model=MODEL,
         max_tokens=16000,
         system=SYSTEM_PROMPT,
