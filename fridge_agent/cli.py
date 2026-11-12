@@ -14,6 +14,8 @@ import anthropic
 from dotenv import load_dotenv
 
 from .models import FridgeInventory
+from .profile import load_profile
+from .recipes import CheckResult, Recipe, suggest_recipes
 from .usda import USDAError
 from .nutrition import NutritionLine, compute_nutrition, match_ingredients
 from .vision import detect_ingredients
@@ -56,6 +58,23 @@ def print_nutrition(lines: list[NutritionLine]) -> None:
             print(f"  {n.ingredient}: {n.note}")
 
 
+def print_recipes(results: list[tuple[Recipe, CheckResult]], protein_target: float) -> None:
+    for i, (r, check) in enumerate(results, 1):
+        m = check.per_serving
+        print(f"\n{'=' * 70}\n{i}. {r.title}")
+        print(f"   {r.why}")
+        print(f"   Serves {r.servings} · {r.cook_minutes} min · per serving: {m.protein_g:g} g protein "
+              f"(target {protein_target:g}), {m.calories_kcal:g} kcal, {m.carbs_g:g} g carbs, {m.fat_g:g} g fat")
+        if check.problems:
+            print(f"   ⚠ Didn't fully pass the check: {'; '.join(check.problems)}")
+        print("\n   Ingredients:")
+        for ing in r.ingredients:
+            print(f"     - {ing.ingredient}: {ing.grams:g} g")
+        print("\n   Steps:")
+        for n, step in enumerate(r.steps, 1):
+            print(f"     {n}. {step}")
+
+
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()  # picks up ANTHROPIC_API_KEY / USDA_API_KEY from a local .env file
     parser = argparse.ArgumentParser(description="See what's in your fridge and what it's worth nutritionally.")
@@ -63,6 +82,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--inventory", type=Path, help="load a saved ingredient list instead of photos")
     parser.add_argument("--save-inventory", type=Path, help="save the ingredient list as JSON")
     parser.add_argument("--nutrition", action="store_true", help="look up USDA nutrition for each ingredient")
+    parser.add_argument("--recipes", action="store_true", help="suggest high-protein recipes (includes --nutrition)")
+    parser.add_argument("--profile", type=Path, help="profile JSON (default: profile.json, else profile.example.json)")
+    parser.add_argument("-n", type=int, default=3, help="number of recipes (default 3)")
     parser.add_argument("--json", action="store_true", help="print raw JSON instead of tables")
     parser.add_argument("-v", "--verbose", action="store_true", help="show each step the agent takes")
     args = parser.parse_args(argv)
@@ -83,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.save_inventory:
         args.save_inventory.write_text(inventory.model_dump_json(indent=2))
 
-    if not args.nutrition:
+    if not (args.nutrition or args.recipes):
         if args.json:
             print(json.dumps(inventory.model_dump(mode="json"), indent=2))
         else:
@@ -93,10 +115,21 @@ def main(argv: list[str] | None = None) -> int:
     trace = (lambda msg: print(f"[agent] {msg}", file=sys.stderr)) if args.verbose else (lambda _: None)
     print("Looking up nutrition in the USDA database...", file=sys.stderr)
     lines = compute_nutrition(match_ingredients(inventory, trace=trace))
+    if not args.recipes:
+        if args.json:
+            print(json.dumps([n.model_dump() for n in lines], indent=2))
+        else:
+            print_nutrition(lines)
+        return 0
+
+    profile = load_profile(args.profile)
+    print(f"Writing {args.n} recipes (~{profile.protein_per_meal_g:g} g protein each)... (usually 1-2 minutes)",
+          file=sys.stderr)
+    results = suggest_recipes(lines, profile, n=args.n, trace=trace)
     if args.json:
-        print(json.dumps([n.model_dump() for n in lines], indent=2))
+        print(json.dumps([{"recipe": r.model_dump(), "check": c.model_dump()} for r, c in results], indent=2))
     else:
-        print_nutrition(lines)
+        print_recipes(results, profile.protein_per_meal_g)
     return 0
 
 

@@ -25,7 +25,8 @@ from pydantic import BaseModel, Field
 
 from . import usda
 from .models import FridgeInventory
-from .vision import MODEL, RefusalError, ask_claude, make_client
+from .agent_loop import run_agent
+from .vision import make_client
 
 MAX_TURNS = 25
 
@@ -99,52 +100,21 @@ def match_ingredients(
     client: anthropic.Anthropic | None = None,
     trace: Callable[[str], None] = lambda _: None,
 ) -> MatchResult:
-    """The agent loop: let Claude search USDA until every ingredient is matched."""
+    """Let Claude search USDA until every ingredient is matched (see agent_loop.py)."""
     client = client or make_client()
     # Pass the photo notes along too ("2% reduced fat", "plain 0%"): they decide
     # which USDA entry is right, and dropping them loses what step 1 read off the label.
     lines = [f"- {i.name}: {i.quantity}" + (f" ({i.note})" if i.note else "") for i in inventory.ingredients]
-    messages: list = [{"role": "user", "content": "Ingredients:\n" + "\n".join(lines)}]
-
-    for turn in range(1, MAX_TURNS + 1):
-        response = ask_claude(
-            client,
-            model=MODEL,
-            max_tokens=16000,
-            system=SYSTEM_PROMPT,
-            tools=TOOLS,
-            output_config={"effort": "low"},
-            output_format=MatchResult,
-            messages=messages,
-        )
-
-        if response.stop_reason == "refusal":
-            raise RefusalError("Claude declined the nutrition lookup")
-
-        # Always append the full content (including thinking blocks) so the
-        # next request carries Claude's reasoning forward.
-        messages.append({"role": "assistant", "content": response.content})
-
-        tool_calls = [b for b in response.content if b.type == "tool_use"]
-        if not tool_calls:
-            if response.parsed_output is None:
-                raise RuntimeError(f"No structured result (stop_reason={response.stop_reason})")
-            trace(f"turn {turn}: done")
-            return response.parsed_output
-
-        results = []
-        for call in tool_calls:
-            trace(f"turn {turn}: {call.name}({json.dumps(call.input)})")
-            try:
-                content, is_error = _run_tool(call.name, call.input), False
-            except Exception as e:  # tell Claude what went wrong instead of crashing
-                content, is_error = f"Error: {e}", True
-                trace(f"  -> error: {e}")
-            results.append({"type": "tool_result", "tool_use_id": call.id, "content": content, "is_error": is_error})
-        # All results for one turn go back in a single user message.
-        messages.append({"role": "user", "content": results})
-
-    raise RuntimeError(f"Agent did not finish within {MAX_TURNS} turns")
+    return run_agent(
+        client,
+        system=SYSTEM_PROMPT,
+        tools=TOOLS,
+        run_tool=_run_tool,
+        output_format=MatchResult,
+        first_message="Ingredients:\n" + "\n".join(lines),
+        max_turns=MAX_TURNS,
+        trace=trace,
+    )
 
 
 def compute_nutrition(match: MatchResult) -> list[NutritionLine]:

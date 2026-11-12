@@ -7,6 +7,7 @@ An AI agent that looks at photos of your fridge and suggests healthy, high-prote
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp profile.example.json profile.json   # then edit your targets
 cp .env.example .env   # paste your key from console.anthropic.com (and optionally a free USDA key)
 ```
 
@@ -19,6 +20,10 @@ python -m fridge_agent photos/fridge.jpg --json   # raw structured output
 # Step 2: nutrition. Save the ingredient list once, then reuse it (saves API calls)
 python -m fridge_agent photos/fridge.jpg --save-inventory inventory.json
 python -m fridge_agent --inventory inventory.json --nutrition -v
+
+# Step 3: recipes
+python -m fridge_agent photos/fridge.jpg --recipes -v
+python -m fridge_agent --inventory inventory.json --recipes -n 2
 
 # No photo handy? Try the sample fridge image or the sample list
 python -m fridge_agent examples/sample_fridge.jpg
@@ -33,8 +38,9 @@ Run the tests (no API key needed): `pytest`
 | --- | --- | --- |
 | 1 ✅ | Photo to ingredient list | Multimodal input, structured output |
 | 2 ✅ | Real nutrition data from USDA FoodData Central | Tool use and the agent loop |
-| 3 | 2 or 3 high-protein recipes with macros | Grounding, retrieval (RAG) |
+| 3 ✅ | 2 or 3 high-protein recipes with macros | Context (your profile), self-checking with a tool |
 | 4 | Weekly plan around training days + shopping list | Planning and subtasks |
+| 4b | Searchable recipe library the agent adapts | Retrieval (RAG), embeddings |
 | 5 | Chef, Nutritionist and Critic agents | Multi-agent orchestration, self-checking |
 | 6 | Remembers ratings and what you ate | Long-term memory, feedback loops |
 | 7 | Phone-friendly web page (Streamlit) | Putting an agent behind a UI |
@@ -62,3 +68,14 @@ Two things worth noticing:
 - **Errors go back to the model.** If a tool fails (rate limit, bad query), the loop returns the error as a tool result instead of crashing, so Claude can try something else. `MAX_TURNS` stops a runaway loop.
 
 The loop is hand-written so every step is visible. The Anthropic SDK also has a tool runner that does this for you; later steps may switch to it.
+
+## Step 3: how it works
+
+`fridge_agent/recipes.py` suggests recipes using two ideas:
+
+- **Context.** `profile.json` holds your protein and calorie targets, meals per day, foods to avoid, max cooking time and the pantry staples you always have. Copy `profile.example.json` and edit it; the agent reads it every run.
+- **Self-checking with a tool.** Claude is good at inventing recipes and bad at adding up protein in its head. So it gets a `check_recipe` tool that computes macros per serving from USDA data and lists problems: an ingredient you don't have, more grams than you have, protein under your per-meal target, too long to cook, or something on your avoid list. The prompt tells Claude to check every recipe and fix any that fail before answering. With `-v` you can watch it draft, check, and revise.
+
+After Claude answers, Python checks each recipe one more time. The numbers printed are always computed by our code, and any recipe that still has problems is flagged with a ⚠.
+
+`agent_loop.py` now holds the loop that steps 2 and 3 share: same loop, different tools.

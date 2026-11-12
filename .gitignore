@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 photos/
 .cache/
+profile.json
